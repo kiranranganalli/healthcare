@@ -1,0 +1,508 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Load the dataset
+file_path = 'healthcare_dataset.csv'
+healthcare_data = pd.read_csv(file_path)
+
+# Display the first few rows to understand the structure of the dataset
+healthcare_data.head()
+
+# Function to clean text columns by removing extra spaces and capitalizing first letters
+def clean_text_columns(df, columns):
+    for col in columns:
+        df[col] = df[col].str.strip().str.title()
+    return df
+
+# Clean text columns
+text_columns = ['Name', 'Gender', 'Medical Condition', 'Doctor', 'Hospital', 
+                'Insurance Provider', 'Admission Type', 'Medication', 'Test Results']
+healthcare_data = clean_text_columns(healthcare_data, text_columns)
+
+# Convert date columns to datetime format
+date_columns = ['Date of Admission', 'Discharge Date']
+for col in date_columns:
+    healthcare_data[col] = pd.to_datetime(healthcare_data[col], errors='coerce')
+
+# Calculate 'Length of Stay'
+healthcare_data['Length of Stay'] = (healthcare_data['Discharge Date'] - healthcare_data['Date of Admission']).dt.days
+
+# Remove duplicate rows
+healthcare_data = healthcare_data.drop_duplicates()
+
+# Replace negative Billing Amounts with NaN
+healthcare_data.loc[healthcare_data['Billing Amount'] < 0, 'Billing Amount'] = None
+
+# Check for missing values and duplicates
+missing_values = healthcare_data.isnull().sum()
+duplicates = healthcare_data.duplicated().sum()
+
+# Validate numeric columns
+numeric_summary = healthcare_data[['Age', 'Billing Amount', 'Room Number', 'Length of Stay']].describe()
+
+# Function to plot bar graphs with value annotations
+def plot_bar_with_values(data, column, title, xlabel, ylabel, rotation=45):
+    value_counts = data[column].value_counts()
+    plt.figure(figsize=(10, 6))
+    ax = value_counts.plot(kind='bar', color='skyblue', edgecolor='black')
+    plt.title(title, fontsize=14)
+    plt.xlabel(xlabel, fontsize=12)
+    plt.ylabel(ylabel, fontsize=12)
+    plt.xticks(rotation=rotation, fontsize=10)
+    
+    for p in ax.patches:
+        ax.annotate(str(p.get_height()), (p.get_x() + p.get_width() / 2, p.get_height()),
+                    ha='center', va='bottom', fontsize=10)
+    plt.tight_layout()
+    plt.show()
+
+# Plot categorical variables
+categorical_columns = ['Gender', 'Blood Type', 'Medical Condition', 'Admission Type', 'Test Results']
+for column in categorical_columns:
+    plot_bar_with_values(healthcare_data, column, title=f"Distribution of {column}", xlabel=column, ylabel="Count")
+
+# Function to plot numeric variable distributions
+def plot_numeric_distribution(data, column):
+    plt.figure(figsize=(10, 6))
+    plt.hist(data[column].dropna(), bins=15, color='lightgreen', edgecolor='black', alpha=0.7)
+    plt.title(f"Distribution of {column}", fontsize=14)
+    plt.xlabel(column, fontsize=12)
+    plt.ylabel("Frequency", fontsize=12)
+    plt.tight_layout()
+    plt.show()
+
+# Plot numeric variables
+numeric_columns = ['Age', 'Billing Amount', 'Length of Stay']
+for column in numeric_columns:
+    plot_numeric_distribution(healthcare_data, column)
+
+# Bivariate analysis: Numeric vs Categorical variables
+def plot_bivariate_bar(data, numeric_col, categorical_col, title, xlabel, ylabel):
+    avg_values = data.groupby(categorical_col)[numeric_col].mean().sort_values()
+    plt.figure(figsize=(12, 6))
+    ax = avg_values.plot(kind='bar', color='coral', edgecolor='black')
+    plt.title(title, fontsize=14)
+    plt.xlabel(xlabel, fontsize=12)
+    plt.ylabel(ylabel, fontsize=12)
+    plt.xticks(rotation=45, fontsize=10)
+    
+    for p in ax.patches:
+        ax.annotate(f'{p.get_height():.2f}', (p.get_x() + p.get_width() / 2, p.get_height()),
+                    ha='center', va='bottom', fontsize=10)
+    plt.tight_layout()
+    plt.show()
+
+# Pairs for bivariate analysis
+bivariate_pairs = [
+    ('Billing Amount', 'Medical Condition', 'Average Billing Amount by Medical Condition'),
+    ('Length of Stay', 'Admission Type', 'Average Length of Stay by Admission Type'),
+    ('Billing Amount', 'Test Results', 'Average Billing Amount by Test Results'),
+    ('Length of Stay', 'Medical Condition', 'Average Length of Stay by Medical Condition')
+]
+
+for numeric_col, categorical_col, title in bivariate_pairs:
+    plot_bivariate_bar(healthcare_data, numeric_col, categorical_col, title=title, xlabel=categorical_col, ylabel=f"Average {numeric_col}")
+
+# Create age groups in 10-year intervals
+bins_10_years = list(range(0, 101, 10)) + [healthcare_data['Age'].max() + 1]
+labels_10_years = [f"{bins_10_years[i]}-{bins_10_years[i+1]-1}" for i in range(len(bins_10_years)-1)]
+healthcare_data['Age Group'] = pd.cut(healthcare_data['Age'], bins=bins_10_years, labels=labels_10_years, right=False)
+
+# Analyze most common medical conditions by gender and age group
+common_conditions = healthcare_data.groupby(['Gender', 'Age Group', 'Medical Condition']).size().reset_index(name='Count')
+most_common_conditions = common_conditions.loc[common_conditions.groupby(['Gender', 'Age Group'])['Count'].idxmax()]
+
+# Pivot data for plotting
+plot_data = most_common_conditions.pivot(index='Age Group', columns='Gender', values='Count').fillna(0)
+conditions_data = most_common_conditions.pivot(index='Age Group', columns='Gender', values='Medical Condition')
+
+# Function to plot most common conditions by gender and age group
+def plot_most_common_conditions(plot_data, conditions_data):
+    plt.figure(figsize=(14, 8))
+    bar_width = 0.4
+    age_groups = plot_data.index
+    x = range(len(age_groups))
+
+    plt.bar(x, plot_data['Male'], width=bar_width, label='Male', color='blue', alpha=0.7)
+    plt.bar([i + bar_width for i in x], plot_data['Female'], width=bar_width, label='Female', color='orange', alpha=0.7)
+
+    for i, age_group in enumerate(age_groups):
+        plt.text(i, plot_data['Male'].iloc[i] + 2, conditions_data['Male'].iloc[i], ha='center', fontsize=10, color='blue')
+        plt.text(i + bar_width, plot_data['Female'].iloc[i] + 2, conditions_data['Female'].iloc[i], ha='center', fontsize=10, color='orange')
+
+    plt.title('Most Common Medical Conditions by Gender and Age Group', fontsize=16)
+    plt.xlabel('Age Group', fontsize=14)
+    plt.ylabel('Count', fontsize=14)
+    plt.xticks([i + bar_width / 2 for i in x], age_groups, rotation=45, fontsize=12)
+    plt.legend(title='Gender', fontsize=12)
+    plt.tight_layout()
+    plt.show()
+
+plot_most_common_conditions(plot_data, conditions_data)
+
+# Export cleaned dataset
+healthcare_data.to_csv('cleaned_healthcare_dataset.csv', index=False)
+
+# Summary of operations
+print("Missing values per column:")
+print(missing_values)
+print("\nNumber of duplicate rows removed:", duplicates)
+print("\nNumeric column summary:")
+print(numeric_summary)
+
+#############
+#What are the most common age groups among patients, and how do they vary by gender?
+#Are there specific patterns in patient admissions by month or year?
+
+# Question 1: Most common age groups among patients and variation by gender
+# Create age groups in 10-year intervals
+bins = sorted(set(list(range(0, 101, 10)) + [healthcare_data['Age'].max() + 1]))
+labels = [f"{bins[i]}-{bins[i+1]-1}" for i in range(len(bins)-1)]
+healthcare_data['Age Group'] = pd.cut(healthcare_data['Age'], bins=bins, labels=labels, right=False, duplicates='drop')
+
+# Count patients by age group and gender
+age_gender_counts = healthcare_data.groupby(['Age Group', 'Gender']).size().reset_index(name='Count')
+
+# Plot bar chart for age groups by gender
+plt.figure(figsize=(14, 8))
+barplot = sns.barplot(x='Age Group', y='Count', hue='Gender', data=age_gender_counts, palette='Set2', dodge=True)
+plt.title('Patient Distribution by Age Group and Gender', fontsize=16)
+plt.xlabel('Age Group', fontsize=14)
+plt.ylabel('Number of Patients', fontsize=14)
+plt.xticks(rotation=45, fontsize=12)
+plt.legend(title='Gender', fontsize=12)
+
+# Annotate bars with counts
+for bar in barplot.patches:
+    barplot.annotate(format(bar.get_height(), '.0f'),
+                     (bar.get_x() + bar.get_width() / 2, bar.get_height()),
+                     ha='center', va='bottom', fontsize=10)
+
+plt.tight_layout()
+plt.show()
+
+# Question 2: Patterns in patient admissions by month and year
+# Extract year and month from 'Date of Admission'
+healthcare_data['Date of Admission'] = pd.to_datetime(healthcare_data['Date of Admission'], errors='coerce')
+healthcare_data['Year'] = healthcare_data['Date of Admission'].dt.year
+healthcare_data['Month'] = healthcare_data['Date of Admission'].dt.month
+
+# Count admissions by year and month
+admissions_by_month_year = healthcare_data.groupby(['Year', 'Month']).size().reset_index(name='Count')
+
+# Plot yearly patterns (bar chart for each year)
+years = admissions_by_month_year['Year'].unique()
+for year in years:
+    yearly_data = admissions_by_month_year[admissions_by_month_year['Year'] == year]
+    plt.figure(figsize=(10, 6))
+    bars = plt.bar(yearly_data['Month'], yearly_data['Count'], color='skyblue', edgecolor='black')
+
+    # Annotate bars with counts
+    for bar in bars:
+        plt.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), str(bar.get_height()), 
+                 ha='center', va='bottom', fontsize=10)
+
+    plt.title(f'Admissions by Month for Year {int(year)}', fontsize=16)
+    plt.xlabel('Month', fontsize=14)
+    plt.ylabel('Number of Admissions', fontsize=14)
+    plt.xticks(range(1, 13), 
+               ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], 
+               fontsize=12)
+    plt.tight_layout()
+    plt.show()
+
+# Plot monthly trends across years (line chart)
+plt.figure(figsize=(14, 8))
+sns.lineplot(x='Month', y='Count', hue='Year', data=admissions_by_month_year, palette='tab10', marker='o')
+plt.title('Monthly Admission Trends Across Years', fontsize=16)
+plt.xlabel('Month', fontsize=14)
+plt.ylabel('Number of Admissions', fontsize=14)
+plt.xticks(range(1, 13), 
+           ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], 
+           fontsize=12)
+plt.legend(title='Year', fontsize=12)
+plt.tight_layout()
+plt.show()
+
+
+#################################################
+
+# Question 3: Most common medical conditions overall
+condition_counts = healthcare_data['Medical Condition'].value_counts().reset_index()
+condition_counts.columns = ['Medical Condition', 'Count']
+
+# Plot bar chart for most common medical conditions
+plt.figure(figsize=(14, 8))
+barplot = sns.barplot(x='Medical Condition', y='Count', data=condition_counts.head(10), palette='viridis')
+plt.title('Top 10 Most Common Medical Conditions', fontsize=16)
+plt.xlabel('Medical Condition', fontsize=14)
+plt.ylabel('Number of Patients', fontsize=14)
+plt.xticks(rotation=45, fontsize=12)
+
+# Annotate bars with counts
+for bar in barplot.patches:
+    barplot.annotate(format(bar.get_height(), '.0f'),
+                     (bar.get_x() + bar.get_width() / 2, bar.get_height()),
+                     ha='center', va='bottom', fontsize=10)
+
+plt.tight_layout()
+plt.show()
+
+
+# Question 4: Most frequent medical condition in specific age groups or genders
+age_condition_counts = healthcare_data.groupby(['Age Group', 'Medical Condition']).size().reset_index(name='Count')
+age_condition_top = age_condition_counts.loc[age_condition_counts.groupby('Age Group')['Count'].idxmax()]
+
+print("Most Frequent Medical Condition by Age Group:")
+print(age_condition_top)
+
+# Gender-specific medical condition analysis
+gender_condition_counts = healthcare_data.groupby(['Gender', 'Medical Condition']).size().reset_index(name='Count')
+gender_condition_top = gender_condition_counts.loc[gender_condition_counts.groupby('Gender')['Count'].idxmax()]
+
+print("Most Frequent Medical Condition by Gender:")
+print(gender_condition_top)
+
+# Question 5: Seasonal trends in medical conditions
+seasonal_condition_counts = healthcare_data.groupby(['Month', 'Medical Condition']).size().reset_index(name='Count')
+seasonal_condition_top = seasonal_condition_counts.loc[seasonal_condition_counts.groupby('Month')['Count'].idxmax()]
+
+print("Most Frequent Medical Condition by Month:")
+print(seasonal_condition_top)
+
+# Plot seasonal trends for the most common conditions
+plt.figure(figsize=(14, 8))
+sns.lineplot(x='Month', y='Count', hue='Medical Condition', 
+             data=seasonal_condition_counts[seasonal_condition_counts['Medical Condition'].isin(condition_counts['Medical Condition'].head(5))], 
+             palette='tab10', marker='o')
+plt.title('Seasonal Trends for Top 5 Medical Conditions', fontsize=16)
+plt.xlabel('Month', fontsize=14)
+plt.ylabel('Number of Patients', fontsize=14)
+plt.xticks(range(1, 13), ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], fontsize=12)
+plt.legend(title='Medical Condition', fontsize=12)
+plt.tight_layout()
+plt.show()
+
+
+###########################################
+
+# Question 4: Doctors - Handling the most patients overall
+doctor_counts = healthcare_data['Doctor'].value_counts().reset_index()
+doctor_counts.columns = ['Doctor', 'Count']
+
+# Plot bar chart for top 10 doctors handling the most patients
+plt.figure(figsize=(14, 8))
+barplot = sns.barplot(x='Doctor', y='Count', data=doctor_counts.head(10), palette='magma')
+plt.title('Top 10 Doctors Handling the Most Patients', fontsize=16)
+plt.xlabel('Doctor', fontsize=14)
+plt.ylabel('Number of Patients', fontsize=14)
+plt.xticks(rotation=45, fontsize=12)
+
+# Annotate bars with counts
+for bar in barplot.patches:
+    barplot.annotate(format(bar.get_height(), '.0f'),
+                     (bar.get_x() + bar.get_width() / 2, bar.get_height()),
+                     ha='center', va='bottom', fontsize=10)
+
+plt.tight_layout()
+plt.show()
+
+# Question 5: Doctors specializing in specific medical conditions
+doctor_condition_counts = healthcare_data.groupby(['Doctor', 'Medical Condition']).size().reset_index(name='Count')
+doctor_specialization = doctor_condition_counts.loc[doctor_condition_counts.groupby('Doctor')['Count'].idxmax()]
+
+print("Doctors specializing in specific medical conditions:")
+print(doctor_specialization)
+
+# Question 6: Doctors handling diverse or specific conditions
+doctor_diversity = doctor_condition_counts.groupby('Doctor')['Medical Condition'].nunique().reset_index()
+doctor_diversity.columns = ['Doctor', 'Number of Conditions']
+
+print("Doctors handling diverse or specific conditions:")
+print(doctor_diversity)
+
+
+###############################################
+
+# Question 6: Which hospitals handle the most patients?
+hospital_counts = healthcare_data['Hospital'].value_counts().reset_index()
+hospital_counts.columns = ['Hospital', 'Count']
+
+# Plot bar chart for top 10 hospitals handling the most patients
+plt.figure(figsize=(14, 8))
+barplot = sns.barplot(x='Hospital', y='Count', data=hospital_counts.head(10), palette='coolwarm')
+plt.title('Top 10 Hospitals Handling the Most Patients', fontsize=16)
+plt.xlabel('Hospital', fontsize=14)
+plt.ylabel('Number of Patients', fontsize=14)
+plt.xticks(rotation=45, fontsize=12)
+
+# Annotate bars with counts
+for bar in barplot.patches:
+    barplot.annotate(format(bar.get_height(), '.0f'),
+                     (bar.get_x() + bar.get_width() / 2, bar.get_height()),
+                     ha='center', va='bottom', fontsize=10)
+
+plt.tight_layout()
+plt.show()
+
+
+# Question 7: Do specific hospitals specialize in treating particular medical conditions?
+hospital_condition_counts = healthcare_data.groupby(['Hospital', 'Medical Condition']).size().reset_index(name='Count')
+hospital_specialization = hospital_condition_counts.loc[hospital_condition_counts.groupby('Hospital')['Count'].idxmax()]
+
+print("Hospitals specializing in specific medical conditions:")
+print(hospital_specialization)
+
+# Find top 3 hospitals for each medical condition
+top_hospitals_per_condition = hospital_condition_counts.groupby('Medical Condition').apply(
+    lambda x: x.nlargest(3, 'Count')).reset_index(drop=True)
+
+# Export the output data to a new file
+hospital_specialization.to_csv('hospital_specialization.csv', index=False)
+
+# Question 8:
+# Visualize all top 3 hospitals for each medical condition in a single graph
+# Visualize all top 3 hospitals for each medical condition in a single graph
+plt.figure(figsize=(20, 12))
+bar_width = 0.25
+
+# Create a categorical x-axis with space for each medical condition and its top hospitals
+conditions = top_hospitals_per_condition['Medical Condition'].unique()
+x_positions = []
+current_x = 0
+for condition in conditions:
+    x_positions.extend([current_x + i * bar_width for i in range(3)])
+    current_x += 3 * bar_width + 0.5  # Add space between conditions
+
+# Map x-positions to the data
+top_hospitals_per_condition['x_position'] = x_positions
+
+# Plot the bars
+bars = plt.bar(top_hospitals_per_condition['x_position'], 
+               top_hospitals_per_condition['Count'], 
+               width=bar_width, 
+               color=sns.color_palette('viridis', len(top_hospitals_per_condition['Hospital'].unique())),
+               edgecolor='black')
+
+# Add annotations with a smaller gap above the bar
+for bar, (hospital, count) in zip(bars, top_hospitals_per_condition[['Hospital', 'Count']].values):
+    plt.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.5, f"{hospital}\n({int(count)})",
+             ha='center', va='bottom', fontsize=10, rotation=90)
+
+# Add labels for conditions
+plt.xticks([sum(x_positions[i:i+3]) / 3 for i in range(0, len(x_positions), 3)], conditions, rotation=45, fontsize=12)
+plt.xlabel('Medical Condition', fontsize=14)
+plt.ylabel('Number of Patients', fontsize=14)
+plt.title('Top 3 Hospitals for Each Medical Condition', fontsize=16)
+plt.tight_layout()
+plt.show()
+
+#################################################################
+
+# Question 3: Which medications are prescribed most frequently overall?
+medication_counts = healthcare_data['Medication'].value_counts().reset_index()
+medication_counts.columns = ['Medication', 'Count']
+
+# Plot bar chart for top 10 medications prescribed
+plt.figure(figsize=(14, 8))
+barplot = sns.barplot(x='Medication', y='Count', data=medication_counts.head(10), palette='coolwarm')
+plt.title('Top 10 Medications Prescribed', fontsize=16)
+plt.xlabel('Medication', fontsize=14)
+plt.ylabel('Number of Prescriptions', fontsize=14)
+plt.xticks(rotation=45, fontsize=12)
+
+# Annotate bars with counts
+for bar in barplot.patches:
+    barplot.annotate(format(bar.get_height(), '.0f'),
+                     (bar.get_x() + bar.get_width() / 2, bar.get_height()),
+                     ha='center', va='bottom', fontsize=10)
+
+plt.tight_layout()
+plt.show()
+
+
+###################################################################
+
+# Question 4: Which insurance providers dominate in terms of patient coverage?
+insurance_counts = healthcare_data['Insurance Provider'].value_counts().reset_index()
+insurance_counts.columns = ['Insurance Provider', 'Count']
+
+# Plot bar chart for top 10 insurance providers
+plt.figure(figsize=(14, 8))
+barplot = sns.barplot(x='Insurance Provider', y='Count', data=insurance_counts.head(10), palette='viridis')
+plt.title('Top 10 Insurance Providers by Patient Coverage', fontsize=16)
+plt.xlabel('Insurance Provider', fontsize=14)
+plt.ylabel('Number of Patients', fontsize=14)
+plt.xticks(rotation=45, fontsize=12)
+
+# Annotate bars with counts
+for bar in barplot.patches:
+    barplot.annotate(format(bar.get_height(), '.0f'),
+                     (bar.get_x() + bar.get_width() / 2, bar.get_height()),
+                     ha='center', va='bottom', fontsize=10)
+
+plt.tight_layout()
+plt.show()
+
+# Question 5: Do certain insurance providers cover specific medical conditions more often?
+insurance_condition_counts = healthcare_data.groupby(['Insurance Provider', 'Medical Condition']).size().reset_index(name='Count')
+
+# Find the top insurance provider for each medical condition
+top_insurance_per_condition = insurance_condition_counts.loc[insurance_condition_counts.groupby('Medical Condition')['Count'].idxmax()]
+
+# Export the output data to a new file
+top_insurance_per_condition.to_csv('top_insurance_per_condition.csv', index=False)
+
+# Visualize the top insurance providers for each medical condition
+plt.figure(figsize=(20, 12))
+bar_width = 0.4
+
+# Create a categorical x-axis with space for each medical condition and its top insurance providers
+conditions = top_insurance_per_condition['Medical Condition'].unique()
+x_positions = range(len(conditions))
+
+# Plot the bars
+bars = plt.bar(x_positions, 
+               top_insurance_per_condition['Count'], 
+               width=bar_width, 
+               color='skyblue',
+               edgecolor='black')
+
+# Add annotations
+for bar, (provider, count) in zip(bars, top_insurance_per_condition[['Insurance Provider', 'Count']].values):
+    plt.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.5, f"{provider}\n({int(count)})",
+             ha='center', va='bottom', fontsize=10)
+
+# Add labels for conditions
+plt.xticks(x_positions, conditions, rotation=45, fontsize=12)
+plt.xlabel('Medical Condition', fontsize=14)
+plt.ylabel('Number of Patients', fontsize=14)
+plt.title('Top Insurance Providers for Each Medical Condition', fontsize=16)
+plt.tight_layout()
+plt.show()
+
+
+########################################################
+
+# Question 6: How does the length of stay vary based on medical conditions or admission types?
+# Group data by Medical Condition and Admission Type, and calculate average length of stay
+length_of_stay = healthcare_data.groupby(['Medical Condition', 'Admission Type'])['Length of Stay'].mean().reset_index()
+
+# Pivot the data for better visualization
+length_of_stay_pivot = length_of_stay.pivot(index='Medical Condition', columns='Admission Type', values='Length of Stay')
+
+# Plot heatmap
+plt.figure(figsize=(14, 8))
+sns.heatmap(length_of_stay_pivot, annot=True, fmt=".1f", cmap="YlGnBu", cbar_kws={'label': 'Average Length of Stay (days)'})
+plt.title('Average Length of Stay by Medical Condition and Admission Type', fontsize=16)
+plt.xlabel('Admission Type', fontsize=14)
+plt.ylabel('Medical Condition', fontsize=14)
+plt.xticks(rotation=45, fontsize=12)
+plt.yticks(fontsize=12)
+plt.tight_layout()
+plt.show()
+
+########################################################
+
+
