@@ -28,34 +28,34 @@ Which hospitals handle the most patients?
 
 Identified the top 10 hospitals based on patient count.
 
-Visualization: A bar chart was created to highlight the top hospitals and the number of patients handled.
-
-Do specific hospitals specialize in certain medical conditions?
+![Image](https://github.com/user-attachments/assets/bf126cbc-719b-4653-8851-7af0a0f4129b)
 
 Analyzed hospital-level specialization for each medical condition.
 
 Exported top 3 hospitals for each condition to a CSV file.
 
-Visualization: A grouped bar chart displayed the top 3 hospitals for each medical condition, annotated with hospital names and patient counts.
+![Image](https://github.com/user-attachments/assets/5d863b85-fa3c-4250-b547-8b3a426cfa0d)
 
 *2. Medications*
+
 Which medications are prescribed most frequently?
 Generated a list of the top 10 most prescribed medications and their counts.
-Visualization: A bar chart displaying medication counts with annotations.
+
+![Image](https://github.com/user-attachments/assets/6a7ae3d3-c1fa-404e-b2ef-e343b9f38f97)
 
 *3. Insurance Providers*
+
 Which insurance providers dominate in terms of patient coverage?
 Ranked insurance providers by the number of patients covered.
-Visualization: A bar chart showing the top 10 insurance providers and patient counts.
-Do certain insurance providers cover specific medical conditions more often?
-Identified top insurance providers for each medical condition.
-Exported the results to a CSV file.
-Visualization: A bar chart annotated with the names of insurance providers and their patient counts.
+
+![Image](https://github.com/user-attachments/assets/a432a3ec-19ff-40b4-a2dd-0e9356839841)
 
 *4. Length of Stay*
+
 How does the length of stay vary based on medical conditions or admission types (urgent, elective, etc.)?
 Calculated the average length of stay for each combination of medical condition and admission type.
-Visualization: A heatmap illustrating the average length of stay, with annotations showing the exact values.
+
+![Image](https://github.com/user-attachments/assets/28408549-68a2-4c70-bcca-a79ef8c5ea0c)
 
 *5. Billing Insights*
 What are the average billing amounts across different medical conditions or hospitals?
