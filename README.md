@@ -5,7 +5,7 @@
 This project involves a detailed analysis of healthcare data to uncover patterns, trends, and insights across various domains, including hospitals, insurance providers, medical conditions, medications, billing amounts, and length of patient stays. The analysis was performed using Python, leveraging libraries like pandas, matplotlib, and seaborn for data manipulation and visualization.
 
 **Objectives**
-![Image](https://github.com/user-attachments/assets/78f98a07-a347-456a-a38c-568a6d8aef79)
+
 *The primary objectives of the project were:*
 
 To identify the top-performing hospitals based on the number of patients and specialization in medical conditions.
